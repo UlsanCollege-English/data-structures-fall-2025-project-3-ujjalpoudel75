@@ -1,6 +1,8 @@
-# tests/test_itinerary_and_output.py
 
+# tests/test_itinerary_and_output.py
 from __future__ import annotations
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 import textwrap
 from pathlib import Path

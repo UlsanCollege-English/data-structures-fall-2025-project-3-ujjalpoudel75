@@ -1,6 +1,8 @@
-# tests/test_time_and_parsing.py
 
+# tests/test_time_and_parsing.py
 from __future__ import annotations
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 from pathlib import Path
 import textwrap

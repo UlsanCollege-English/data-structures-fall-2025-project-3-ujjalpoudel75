@@ -58,8 +58,14 @@ class Flight:
         Hint:
         - Map cabin names to the numeric fields defined above.
         """
-        # TODO: implement this.
-        raise NotImplementedError("Flight.price_for is not implemented yet.")
+        if cabin == "economy":
+            return self.economy
+        elif cabin == "business":
+            return self.business
+        elif cabin == "first":
+            return self.first
+        else:
+            raise ValueError(f"Unknown cabin: {cabin}")
 
 
 @dataclass
@@ -80,29 +86,36 @@ class Itinerary:
     @property
     def origin(self) -> Optional[str]:
         # TODO: return the origin airport code of the first flight, or None.
-        raise NotImplementedError("Itinerary.origin is not implemented yet.")
+            if self.is_empty():
+                return None
+            return self.flights[0].origin
 
     @property
     def dest(self) -> Optional[str]:
         # TODO: return the destination airport code of the last flight, or None.
-        raise NotImplementedError("Itinerary.dest is not implemented yet.")
+            if self.is_empty():
+                return None
+            return self.flights[-1].dest
 
     @property
     def depart_time(self) -> Optional[int]:
         # TODO: return the departure time (minutes) of the first flight, or None.
-        raise NotImplementedError("Itinerary.depart_time is not implemented yet.")
+            if self.is_empty():
+                return None
+            return self.flights[0].depart
 
     @property
     def arrive_time(self) -> Optional[int]:
         # TODO: return the arrival time (minutes) of the last flight, or None.
-        raise NotImplementedError("Itinerary.arrive_time is not implemented yet.")
+            if self.is_empty():
+                return None
+            return self.flights[-1].arrive
 
     def total_price(self, cabin: Cabin) -> int:
         """
         Sum the price of all flights in this itinerary for the given cabin.
         """
-        # TODO: use Flight.price_for on each flight and sum.
-        raise NotImplementedError("Itinerary.total_price is not implemented yet.")
+        return sum(f.price_for(cabin) for f in self.flights)
 
     def num_stops(self) -> int:
         """
@@ -112,8 +125,7 @@ class Itinerary:
         - 1 flight: 0 stops (direct).
         - 3 flights: 2 stops.
         """
-        # TODO: implement this simple calculation.
-        raise NotImplementedError("Itinerary.num_stops is not implemented yet.")
+        return max(0, len(self.flights) - 1)
 
 
 # Graph type: adjacency list mapping airport code -> list of outgoing flights.
@@ -139,7 +151,15 @@ def parse_time(hhmm: str) -> int:
     - Validate ranges (0 <= hour < 24, 0 <= minute < 60).
     - Return hour*60 + minute.
     """
-    raise NotImplementedError("parse_time is not implemented yet.")
+    parts = hhmm.strip().split(":")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid time format: {hhmm}")
+    hour, minute = parts
+    hour = int(hour)
+    minute = int(minute)
+    if not (0 <= hour < 24) or not (0 <= minute < 60):
+        raise ValueError(f"Hour or minute out of range: {hhmm}")
+    return hour * 60 + minute
 
 
 def format_time(minutes: int) -> str:
@@ -154,7 +174,9 @@ def format_time(minutes: int) -> str:
     - Compute minute = minutes % 60.
     - Use f-string formatting with zero padding: f\"{hour:02d}:{minute:02d}\".
     """
-    raise NotImplementedError("format_time is not implemented yet.")
+    hour = minutes // 60
+    minute = minutes % 60
+    return f"{hour:02d}:{minute:02d}"
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +207,27 @@ def parse_flight_line_txt(line: str) -> Optional[Flight]:
     - Check that arrive > depart (same-day assumption).
     - Build and return a Flight.
     """
-    raise NotImplementedError("parse_flight_line_txt is not implemented yet.")
+    line = line.strip()
+    if not line or line.startswith('#'):
+        return None
+    fields = line.split()
+    if len(fields) != 8:
+        raise ValueError(f"Malformed flight line: {line}")
+    origin, dest, flight_number, depart, arrive, economy, business, first = fields
+    depart_min = parse_time(depart)
+    arrive_min = parse_time(arrive)
+    if arrive_min <= depart_min:
+        raise ValueError(f"Arrival time must be after departure: {line}")
+    return Flight(
+        origin=origin,
+        dest=dest,
+        flight_number=flight_number,
+        depart=depart_min,
+        arrive=arrive_min,
+        economy=int(economy),
+        business=int(business),
+        first=int(first)
+    )
 
 
 def load_flights_txt(path: str) -> List[Flight]:
@@ -204,7 +246,16 @@ def load_flights_txt(path: str) -> List[Flight]:
     - If it returns a Flight, append it to a list.
     - If parse_flight_line_txt raises ValueError, re-raise with file/line info.
     """
-    raise NotImplementedError("load_flights_txt is not implemented yet.")
+    flights = []
+    with open(path, "r", encoding="utf-8") as f:
+        for lineno, line in enumerate(f, 1):
+            try:
+                flight = parse_flight_line_txt(line)
+                if flight:
+                    flights.append(flight)
+            except ValueError as e:
+                raise ValueError(f"{path}:{lineno}: {e}")
+    return flights
 
 
 def load_flights_csv(path: str) -> List[Flight]:
@@ -223,7 +274,31 @@ def load_flights_csv(path: str) -> List[Flight]:
         * build a Flight
     - Return the list of Flights.
     """
-    raise NotImplementedError("load_flights_csv is not implemented yet.")
+    required = ["origin", "dest", "flight_number", "depart", "arrive", "economy", "business", "first"]
+    flights = []
+    with open(path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if not all(col in reader.fieldnames for col in required):
+            raise ValueError(f"Missing required columns in CSV: {reader.fieldnames}")
+        for lineno, row in enumerate(reader, 2):
+            try:
+                depart_min = parse_time(row["depart"])
+                arrive_min = parse_time(row["arrive"])
+                if arrive_min <= depart_min:
+                    raise ValueError(f"Arrival time must be after departure: {row}")
+                flights.append(Flight(
+                    origin=row["origin"],
+                    dest=row["dest"],
+                    flight_number=row["flight_number"],
+                    depart=depart_min,
+                    arrive=arrive_min,
+                    economy=int(row["economy"]),
+                    business=int(row["business"]),
+                    first=int(row["first"])
+                ))
+            except Exception as e:
+                raise ValueError(f"{path}:{lineno}: {e}")
+    return flights
 
 
 def load_flights(path: str) -> List[Flight]:
@@ -238,7 +313,11 @@ def load_flights(path: str) -> List[Flight]:
     - Inspect Path(path).suffix.
     - Call the appropriate loader and return the result.
     """
-    raise NotImplementedError("load_flights is not implemented yet.")
+    ext = Path(path).suffix.lower()
+    if ext == ".csv":
+        return load_flights_csv(path)
+    else:
+        return load_flights_txt(path)
 
 
 # ---------------------------------------------------------------------------
@@ -261,7 +340,10 @@ def build_graph(flights: Iterable[Flight]) -> Graph:
     - Time:  O(N) where N = number of flights.
     - Space: O(N) for the adjacency lists.
     """
-    raise NotImplementedError("build_graph is not implemented yet.")
+    graph: Graph = {}
+    for flight in flights:
+        graph.setdefault(flight.origin, []).append(flight)
+    return graph
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +383,31 @@ def find_earliest_itinerary(
     TODO:
     - Implement this search and return an Itinerary or None.
     """
-    raise NotImplementedError("find_earliest_itinerary is not implemented yet.")
+    import heapq
+    dist = {start: earliest_departure}
+    prev = {}
+    flight_taken = {}
+    heap = [(earliest_departure, start)]
+    while heap:
+        curr_time, airport = heapq.heappop(heap)
+        if airport == dest:
+            # reconstruct path
+            path = []
+            a = dest
+            while a != start:
+                f = flight_taken[a]
+                path.append(f)
+                a = f.origin
+            path.reverse()
+            return Itinerary(path)
+        for flight in graph.get(airport, []):
+            min_depart = curr_time if airport == start else curr_time + MIN_LAYOVER_MINUTES
+            if flight.depart >= min_depart:
+                if (flight.dest not in dist) or (flight.arrive < dist[flight.dest]):
+                    dist[flight.dest] = flight.arrive
+                    flight_taken[flight.dest] = flight
+                    heapq.heappush(heap, (flight.arrive, flight.dest))
+    return None
 
 
 def find_cheapest_itinerary(
@@ -335,7 +441,34 @@ def find_cheapest_itinerary(
     TODO:
     - Implement this search and return an Itinerary or None.
     """
-    raise NotImplementedError("find_cheapest_itinerary is not implemented yet.")
+    import heapq
+    dist = {start: 0}
+    arr_time = {start: earliest_departure}
+    prev = {}
+    flight_taken = {}
+    heap = [(0, earliest_departure, start)]  # (total_price, curr_time, airport)
+    while heap:
+        total_price, curr_time, airport = heapq.heappop(heap)
+        if airport == dest:
+            # reconstruct path
+            path = []
+            a = dest
+            while a != start:
+                f = flight_taken[a]
+                path.append(f)
+                a = f.origin
+            path.reverse()
+            return Itinerary(path)
+        for flight in graph.get(airport, []):
+            min_depart = curr_time if airport == start else curr_time + MIN_LAYOVER_MINUTES
+            if flight.depart >= min_depart:
+                price = total_price + flight.price_for(cabin)
+                if (flight.dest not in dist) or (price < dist[flight.dest]):
+                    dist[flight.dest] = price
+                    arr_time[flight.dest] = flight.arrive
+                    flight_taken[flight.dest] = flight
+                    heapq.heappush(heap, (price, flight.arrive, flight.dest))
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +508,31 @@ def format_comparison_table(
     - Add a header line and a separator line.
     - Join them with '\\n' and return the final string.
     """
-    raise NotImplementedError("format_comparison_table is not implemented yet.")
+    header = ["Mode", "Cabin", "Origin", "Dest", "Dep", "Arr", "Duration", "Stops", "Total Price", "Note"]
+    rows_out = []
+    rows_out.append(" | ".join(header))
+    rows_out.append("-|-".join(["-"*len(h) for h in header]))
+    for row in rows:
+        if row.itinerary is None:
+            origin_val = dest_val = dep = arr = duration = stops = price = "N/A"
+            note = row.note or "(no valid itinerary)"
+        else:
+            origin_val = row.itinerary.origin if row.itinerary.origin is not None else "N/A"
+            dest_val = row.itinerary.dest if row.itinerary.dest is not None else "N/A"
+            dep = format_time(row.itinerary.depart_time) if row.itinerary.depart_time is not None else "N/A"
+            arr = format_time(row.itinerary.arrive_time) if row.itinerary.arrive_time is not None else "N/A"
+            dur_min = (row.itinerary.arrive_time - row.itinerary.depart_time) if (row.itinerary.arrive_time is not None and row.itinerary.depart_time is not None) else None
+            if dur_min is not None:
+                h = dur_min // 60
+                m = dur_min % 60
+                duration = f"{h}h{m:02d}m"
+            else:
+                duration = "N/A"
+            stops = str(row.itinerary.num_stops())
+            price = str(row.itinerary.total_price(row.cabin)) if row.cabin else "N/A"
+            note = row.note
+        rows_out.append(f"{row.mode} | {row.cabin or 'N/A'} | {origin_val} | {dest_val} | {dep} | {arr} | {duration} | {stops} | {price} | {note}")
+    return "\n".join(rows_out)
 
 
 # ---------------------------------------------------------------------------
@@ -406,7 +563,21 @@ def run_compare(args: argparse.Namespace) -> None:
     - Build a list[ComparisonRow] for these 4 results.
     - Call format_comparison_table(...) and print the string.
     """
-    raise NotImplementedError("run_compare is not implemented yet.")
+    earliest_departure = parse_time(args.departure_time)
+    flights = load_flights(args.flight_file)
+    graph = build_graph(flights)
+    earliest = find_earliest_itinerary(graph, args.origin, args.dest, earliest_departure)
+    cheapest_economy = find_cheapest_itinerary(graph, args.origin, args.dest, earliest_departure, "economy")
+    cheapest_business = find_cheapest_itinerary(graph, args.origin, args.dest, earliest_departure, "business")
+    cheapest_first = find_cheapest_itinerary(graph, args.origin, args.dest, earliest_departure, "first")
+    rows = [
+        ComparisonRow(mode="Earliest Arrival", cabin=None, itinerary=earliest, note="" if earliest else "(no valid itinerary)"),
+        ComparisonRow(mode="Cheapest", cabin="economy", itinerary=cheapest_economy, note="" if cheapest_economy else "(no valid itinerary)"),
+        ComparisonRow(mode="Cheapest", cabin="business", itinerary=cheapest_business, note="" if cheapest_business else "(no valid itinerary)"),
+        ComparisonRow(mode="Cheapest", cabin="first", itinerary=cheapest_first, note="" if cheapest_first else "(no valid itinerary)")
+    ]
+    table = format_comparison_table(args.origin, args.dest, earliest_departure, rows)
+    print(table)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

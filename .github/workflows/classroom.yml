@@ -1,7 +1,7 @@
 name: Autograding Tests
-'on':
-- push
-- repository_dispatch
+on:
+  push:
+  repository_dispatch:
 permissions:
   checks: write
   actions: read
@@ -13,15 +13,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    - name: tests
-      id: tests
-      uses: classroom-resources/autograding-python-grader@v1
+    - name: Run Classroom Autograder
+      id: autograder
+      uses: classroom-resources/autograding-command-grader@v1
       with:
+        test-name: tests
+        setup-command: python -m pip install -r requirements.txt
+        command: python -m pytest tests/test_hw02.py --tb=short -q
         timeout: 10
-        setup-command: ''
-    - name: Autograding Reporter
-      uses: classroom-resources/autograding-grading-reporter@v1
-      env:
-        TESTS_RESULTS: "${{steps.tests.outputs.result}}"
-      with:
-        runners: tests
+        max-score: 100
